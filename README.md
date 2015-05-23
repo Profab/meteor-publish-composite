@@ -32,6 +32,14 @@ Eventually you can do:
 $ meteor add profab:rethink-publish-composite
 ```
 
+## Todos
+
+Right now, we are still working on helping get RethinkDB support on our [fork of `simple:rethink`](https://github.com/Profab/meteor-rethinkdb/tree/publish-improve).
+
+This package seems to have worked out of the box with the above fork.
+
+Tests still need to be done though.
+
 ## Usage
 
 This package defines one new Meteor function on the server:
