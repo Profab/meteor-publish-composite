@@ -7,7 +7,7 @@ This project differs from many other parent/child relationship mappers in its fl
 
 ## What? Why? RethinkDB supports Joins
 
-It does, but not for change-feeds, [yet](https://github.com/rethinkdb/rethinkdb/issues/3997). So this will only serve a temporary solution, where it'll publish all the necessary documents and then you'll be able to join the results on the client using Reqlite.
+It does, but not for change-feeds, [yet](https://github.com/rethinkdb/rethinkdb/issues/3997). So this will only serve a temporary solution, where it'll publish all the necessary documents and then you'll be able to join the results on the client using [Reqlite](https://github.com/neumino/reqlite).
 
 ## Gotchas
 
