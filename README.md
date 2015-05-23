@@ -19,6 +19,15 @@ The code was adapted from the `reywood:publish-composite` package. Thanks @reywo
 
 ## Installation
 
+Right now this has not been published to Atmosphere yet, so just simply
+
+```
+$ cd /your/meteor/app/root/packages
+$ git clone https://github.com/Profab/meteor-rethink-publish-composite.git
+$ git checkout for-rethink
+```
+
+Eventually you can do:
 ```sh
 $ meteor add profab:rethink-publish-composite
 ```
