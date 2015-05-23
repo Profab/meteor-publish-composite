@@ -1,22 +1,33 @@
-meteor-publish-composite
+RethinkDB Publish Composite
 ========================
 
-`Meteor.publishComposite(...)` provides a flexible way to publish a set of related documents from various collections using a reactive join. This makes it easy to publish a whole tree of documents at once. The published collections are reactive and will update when additions/changes/deletions are made.
+`Meteor.publishRethinkComposite(...)` provides a flexible way to publish a set of related documents from various RethinkDB tables using a reactive join. This makes it easy to publish a whole tree of documents at once. The published collections are reactive and will update when additions/changes/deletions are made.
 
-This project differs from many other parent/child relationship mappers in its flexibility. The relationship between a parent and its children can be based on almost anything. For example, let's say you have a site that displays news articles. On each article page, you would like to display a list at the end containing a couple of related articles. You could use `publishComposite` to publish the primary article, scan the body for keywords which are then used to search for other articles, and publish these related articles as children. Of course, the keyword extraction and searching are up to you to implement.
+This project differs from many other parent/child relationship mappers in its flexibility. The relationship between a parent and its children can be based on almost anything. For example, let's say you have a site that displays news articles. On each article page, you would like to display a list at the end containing a couple of related articles. You could use `rethinkPublishComposite` to publish the primary article, scan the body for keywords which are then used to search for other articles, and publish these related articles as children. Of course, the keyword extraction and searching are up to you to implement.
+
+## What? Why? RethinkDB supports Joins
+
+It does, but not for change-feeds, [yet](https://github.com/rethinkdb/rethinkdb/issues/3997). So this will only serve a temporary solution, where it'll publish all the necessary documents and then you'll be able to join the results on the client using Reqlite.
+
+## Gotchas
+
+Currently, this only supports RethinkDB tables where the primary key is `id`. Why must I say this? Because RethinkDB isn't like MongoDB in that it generates an `_id` (and only) primary key. In RethinkDB, when you create a table, you have the option to name your auto-generated primary key field. If you don't set it, it will default to `id`.
+
+## Credit
+
+The code was adapted from the `reywood:publish-composite` package. Thanks @reywood for your work!
 
 ## Installation
 
 ```sh
-$ meteor add reywood:publish-composite
+$ meteor add profab:rethink-publish-composite
 ```
-
 
 ## Usage
 
 This package defines one new Meteor function on the server:
 
-#### Meteor.publishComposite(name, options)
+#### Meteor.publishRethinkComposite(name, options)
 
 Arguments
 
@@ -32,39 +43,39 @@ Arguments
 
     ```javascript
     {
-        find: function() {
-            // Must return a cursor containing top level documents
-        },
-        children: [
+      find: function () {
+        // Must return a cursor containing top level documents
+      },
+      children: [
+        {
+          find: function (topLevelDocument) {
+            // Called for each top level document. Top level document is passed
+            // in as an argument.
+            // Must return a cursor of second tier documents.
+          },
+          children: [
             {
-                find: function(topLevelDocument) {
-                    // Called for each top level document. Top level document is passed
-                    // in as an argument.
-                    // Must return a cursor of second tier documents.
-                },
-                children: [
-                    {
-                        find: function(secondTierDocument, topLevelDocument) {
-                            // Called for each second tier document. These find functions
-                            // will receive all parent documents starting with the nearest
-                            // parent and working all the way up to the top level as
-                            // arguments.
-                            // Must return a cursor of third tier documents.
-                        },
-                        children: [
-                           // Repeat as many levels deep as you like
-                        ]
-                    }
-                ]
-            },
-            {
-                find: function(topLevelDocument) {
-                    // Also called for each top level document.
-                    // Must return another cursor of second tier documents.
-                }
-                // The children property is optional at every level.
+              find: function (secondTierDocument, topLevelDocument) {
+                // Called for each second tier document. These find functions
+                // will receive all parent documents starting with the nearest
+                // parent and working all the way up to the top level as
+                // arguments.
+                // Must return a cursor of third tier documents.
+              },
+              children: [
+               // Repeat as many levels deep as you like
+              ]
             }
-        ]
+          ]
+        },
+        {
+          find: function (topLevelDocument) {
+            // Also called for each top level document.
+            // Must return another cursor of second tier documents.
+          }
+          // The children property is optional at every level.
+        }
+      ]
     }
     ```
 
@@ -77,41 +88,35 @@ First, we'll create our publication on the server.
 
 ```javascript
 // Server
-Meteor.publishComposite('topTenPosts', {
-    find: function() {
-        // Find top ten highest scoring posts
-        return Posts.find({}, { sort: { score: -1 }, limit: 10 });
+Meteor.publishRethinkComposite('topTenPosts', {
+  find: function () {
+    // Find top ten highest scoring posts
+    return Posts.orderBy({ index: r.desc('score') }).limit(10);
+  },
+  children: [
+    {
+      find: function (post) {
+        // Find post author. Even though we only want to return
+        // one record here, we use "find" instead of "findOne"
+        // since this function should return a cursor.
+        return Authors.get(post.authorId);
+      }
     },
-    children: [
+    {
+      find: function (post) {
+        // Find top two comments on post
+        return Comments.orderBy({ index: r.desc('score') }).filter({ postId: post.id }).limit(2);
+      },
+      children: [
         {
-            find: function(post) {
-                // Find post author. Even though we only want to return
-                // one record here, we use "find" instead of "findOne"
-                // since this function should return a cursor.
-                return Meteor.users.find(
-                    { _id: post.authorId },
-                    { limit: 1, fields: { profile: 1 } });
-            }
-        },
-        {
-            find: function(post) {
-                // Find top two comments on post
-                return Comments.find(
-                    { postId: post._id },
-                    { sort: { score: -1 }, limit: 2 });
-            },
-            children: [
-                {
-                    find: function(comment, post) {
-                        // Find user that authored comment.
-                        return Meteor.users.find(
-                            { _id: comment.authorId },
-                            { limit: 1, fields: { profile: 1 } });
-                    }
-                }
-            ]
+          find: function (comment, post) {
+            // Find user that authored comment.
+            return Users.get(comment.authorId);
+          }
         }
-    ]
+      ]
+    }
+  ]
 });
 ```
 
@@ -126,26 +131,26 @@ Now we can use the published data in one of our templates.
 
 ```handlebars
 <template name="topTenPosts">
-    <h1>Top Ten Posts</h1>
-    <ul>
-        {{#each posts}}
-            <li>{{title}} -- {{postAuthor.profile.name}}</li>
-        {{/each}}
-    </ul>
+  <h1>Top Ten Posts</h1>
+  <ul>
+    {{#each posts}}
+      <li>{{title}} -- {{postAuthor.profile.name}}</li>
+    {{/each}}
+  </ul>
 </template>
 ```
 
 ```javascript
 Template.topTenPosts.helpers({
-    posts: function() {
-        return Posts.find();
-    },
+  posts: function () {
+    return Posts.run();
+  },
 
-    postAuthor: function() {
-        // We use this helper inside the {{#each posts}} loop, so the context
-        // will be a post object. Thus, we can use this.authorId.
-        return Meteor.users.findOne(this.authorId);
-    }
+  postAuthor: function () {
+    // We use this helper inside the {{#each posts}} loop, so the context
+    // will be a post object. Thus, we can use this.authorId.
+    return Users.get(this.authorId).run();
+  }
 })
 ```
 
@@ -155,17 +160,17 @@ Note a function is passed for the `options` argument to `Meteor.publishComposite
 
 ```javascript
 // Server
-Meteor.publishComposite('postsByUser', function(userId, limit) {
-    return {
-        find: function() {
-            // Find posts made by user. Note arguments for callback function
-            // being used in query.
-            return Posts.find({ authorId: userId }, { limit: limit });
-        },
-        children: [
-            // This section will be similar to that of the previous example.
-        ]
-    }
+Meteor.publishRethinkComposite('postsByUser', function (userId, limit) {
+  return {
+    find: function () {
+      // Find posts made by user. Note arguments for callback function
+      // being used in query.
+      return Posts.filter({ authorId: userId }).limit(limit).run();
+    },
+    children: [
+      // This section will be similar to that of the previous example.
+    ]
+  }
 });
 ```
 
@@ -174,14 +179,3 @@ Meteor.publishComposite('postsByUser', function(userId, limit) {
 var userId = 1, limit = 10;
 Meteor.subscribe('postsByUser', userId, limit);
 ```
-
-## More info
-
-For more info on how to use `Meteor.publishComposite`, check out these blog posts:
-
-* [Publishing Reactive Joins in Meteor][blog-reactive-joins]
-* [Publishing to an Alternative Client-side Collection in Meteor][blog-collection-name]
-
-
-[blog-reactive-joins]: http://braindump.io/meteor/2014/09/12/publishing-reactive-joins-in-meteor.html
-[blog-collection-name]: http://braindump.io/meteor/2014/09/20/publishing-to-an-alternative-clientside-collection-in-meteor.html

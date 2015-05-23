@@ -1,8 +1,8 @@
 Package.describe({
-    name: "reywood:publish-composite",
-    summary: "Publish a set of related documents from multiple collections with a reactive join",
-    version: "1.3.6",
-    git: "https://github.com/englue/meteor-publish-composite.git"
+    name: "profab:rethink-publish-composite",
+    summary: "Publish a set of related documents from multiple RethinkDB tables with a reactive 'join'.",
+    version: "0.0.1",
+    git: "https://github.com/Profab/meteor-rethink-publish-composite.git"
 });
 
 Package.on_use(function (api) {
@@ -17,9 +17,9 @@ Package.on_use(function (api) {
 });
 
 
-Package.on_test(function(api) {
+/*Package.on_test(function(api) {
     api.use("reywood:publish-composite");
     api.use(["tinytest", "test-helpers"]);
 
     api.add_files([ "tests.js" ]);
-});
+});*/
